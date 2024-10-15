@@ -227,7 +227,7 @@ def main():
     fig.suptitle("Congestion window (cwnd)", y=1.05, fontweight='bold')
 
     plt.tight_layout()
-    plt.savefig("matplotlib_ss.pdf", bbox_inches="tight")
+    plt.savefig("ss.pdf", bbox_inches="tight")
 
     return df
 

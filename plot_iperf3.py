@@ -173,7 +173,7 @@ def main():
     fig.suptitle("Network rate, sender and reciever", y=1.05, fontweight='bold')
 
     plt.tight_layout()
-    plt.savefig("matplotlib_iperf3.pdf", bbox_inches="tight")
+    plt.savefig("iperf3.pdf", bbox_inches="tight")
 
 if __name__ == "__main__":
     main()

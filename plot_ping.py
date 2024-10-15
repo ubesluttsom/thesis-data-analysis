@@ -212,7 +212,7 @@ def main():
     fig.suptitle("Ping RTT over Time", y=1.05, fontweight='bold')
 
     plt.tight_layout()
-    plt.savefig("ping_rtt_plot.pdf", bbox_inches="tight")
+    plt.savefig("ping.pdf", bbox_inches="tight")
 
 if __name__ == "__main__":
     main()
