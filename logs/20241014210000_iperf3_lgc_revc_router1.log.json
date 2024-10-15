@@ -1,0 +1,26 @@
+{
+	"start":	{
+		"connected":	[],
+		"version":	"iperf 3.17.1",
+		"system_info":	"Linux vm1 6.7.0 #110 SMP PREEMPT Sat Oct 12 08:01:53 UTC 2024 aarch64",
+		"sock_bufsize":	0,
+		"sndbuf_actual":	2097152,
+		"rcvbuf_actual":	4194304,
+		"timestamp":	{
+			"time":	"Mon, 14 Oct 2024 20:15:24 UTC",
+			"timesecs":	1728936924
+		},
+		"accepted_connection":	{
+			"host":	"10.0.1.100",
+			"port":	57826
+		},
+		"cookie":	"hkt2jb7pcnynsj4narfl7auzpvihvybjs4xi",
+		"tcp_mss_default":	0,
+		"target_bitrate":	0,
+		"fq_rate":	0
+	},
+	"intervals":	[],
+	"end":	{
+	},
+	"error":	"the client has unexpectedly closed the connection"
+}
