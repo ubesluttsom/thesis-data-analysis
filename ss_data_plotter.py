@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -7,6 +8,8 @@ import matplotlib as mpl
 # mpl.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+
+from utils import get_logs_by_timestamp
 
 mpl.style.use('seaborn-v0_8')
 plt.rcParams['font.family'] = 'serif'
@@ -22,36 +25,64 @@ HOSTNAMES = {
 CONG_NAMES = {
     "reno": "Reno",
     "cubic": "CUBIC",
+    "lgc": "LGC",
     "lgcc": "LGCC",
+    "dctcp": "DCTCP",
 }
 
-if __name__ == "__main__":
-    # Get a list of all `ss` CSV files in LOG_DIR
-    data_frames = []
-    for entry in os.listdir(LOG_DIR):
-        if os.path.isfile(full_path := os.path.join(LOG_DIR, entry)):
-            split_path = os.path.splitext(entry)
-            if split_path[1].lower() == ".log":
-                basename = Path(split_path[0]).with_suffix("").name
-                metadata = basename.split("_")
-                with open(full_path, "r") as file:
-                    data = pd.read_csv(file)
-                    data["path"] = full_path
-                    data["basename"] = basename
-                    data["program"] = metadata[0]
-                    data["congestion_control"] = metadata[1]
-                    data["host"] = metadata[-1]
-                data_frames.append(data)
 
-    # Make giant DataFrame
-    df = pd.concat(data_frames)
+def process_ss_logs(logs):
+    data_frames = []
+    for full_path, metadata in logs:
+        basename = Path(full_path).stem
+        if len(metadata) >= 4:
+            # Assuming filename is 'YYYYMMDDHHMMSS_program_congestion_control_host.log'
+            program = metadata[1]
+            congestion_control = metadata[2]
+            host = metadata[3]
+        elif len(metadata) == 3:
+            program = metadata[1]
+            congestion_control = metadata[2]
+            host = 'unknown'
+        else:
+            program = 'ss'
+            congestion_control = 'unknown'
+            host = 'unknown'
+
+        # Read and parse the ss log file
+        try:
+            data = pd.read_csv(full_path)
+            data["path"] = full_path
+            data["basename"] = basename
+            data["program"] = program
+            data["congestion_control"] = congestion_control
+            data["host"] = host
+            data_frames.append(data)
+        except Exception as e:
+            print(f"Error reading file {full_path}: {e}")
+            continue
+
+    # Concatenate all data frames
+    if data_frames:
+        df = pd.concat(data_frames, ignore_index=True)
+        return df
+    else:
+        print("No data frames to process.")
+        exit(1)
+
+
+def main():
+
+    logs = get_logs_by_timestamp(ext=".log")
+    logs = logs[max(logs)]
+    df = process_ss_logs(logs)
 
     # Exclude 'vm1' from the DataFrame
     df = df[df["host"] != "vm1"]
 
     # Convert to datetime and sort by it
     df["datetime"] = pd.to_datetime(df["time"])
-    df["time"] = df["datetime"].dt.floor("1s")
+    df["time"] = df["datetime"] #.dt.floor("1s")   # disable 1s bin for now
     df.sort_values("time", inplace=True)
 
     # Split IPs and ports, strip whitespace, coerce to ints
@@ -75,6 +106,12 @@ if __name__ == "__main__":
 
     # Create a new column 'src_dest_pair'
     df["src_dest"] = df["src_hostname"] + "–" + df["dst_hostname"]
+
+    # Create a unique identifier for each flow
+    df['flow_id'] = (
+        df['src_hostname'] + ':' + df['src_port'].astype(str) + '->' +
+        df['dst_hostname'] + ':' + df['dst_port'].astype(str)
+    )
 
     # Calculate relative time, starting from 0 for each congestion control
     # group. Assuming each congestion control group is tested concurently.
@@ -108,13 +145,14 @@ if __name__ == "__main__":
         figsize=(len(congestion_controls) * 4, len(host_groups) * 2),
         sharey="row",
         sharex="col",
+        squeeze=False,
     )
 
     # Ensure axes is 2D
     axes = np.atleast_2d(axes)
 
-    # Create consistent colors
-    unique_src_dest = df["src_dest"].unique()
+    # Create consistent colors for each src_dest pair
+    unique_src_dest = df["src_dest"].dropna().unique()
     n = max(2, len(unique_src_dest))
     colors = dict(zip(unique_src_dest, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)]))
 
@@ -126,37 +164,28 @@ if __name__ == "__main__":
                 (df["host_group"] == host_group)
                 & (df["congestion_control"] == congestion_control)
             ]
-            unique_src_dest = data["src_dest"].unique()
+            unique_src_dest = data["src_dest"].dropna().unique()
+
             if data.empty:
                 ax.set_visible(False)
                 continue
 
             # Group and plot data
             for src_dest in unique_src_dest:
-                data_src = data[data["src_dest"] == src_dest]
-                grouped = (
-                    data_src.groupby("relative_time")["cwnd"]
-                    .agg(["mean", "min", "max"])
-                    .reset_index()
-                )
-                ax.plot(
-                    grouped["relative_time"],
-                    grouped["mean"],
-                    color=colors[src_dest],
-                )
-                ax.fill_between(
-                    grouped["relative_time"],
-                    grouped["min"],
-                    grouped["max"],
-                    color=colors[src_dest],
-                    alpha=0.2,
-                )
+                data_src_dest = data[data["src_dest"] == src_dest]
+                flows = data_src_dest["flow_id"].unique()
+                for flow_id in flows:
+                    data_flow = data_src_dest[data_src_dest["flow_id"] == flow_id]
+                    ax.plot(
+                        data_flow["relative_time"],
+                        data_flow["cwnd"],
+                        color=colors[src_dest],
+                        alpha=0.5,  # Use transparency to differentiate flows
+                        # Optionally add labels to individual flows
+                    )
 
             # Set axis limits and labels
-            # ax.set_ylim(bottom=0)
-            # ax.relim()
             ax.autoscale()
-            # ax.autoscale_view()
 
             if i == 0:
                 ax.set_title(CONG_NAMES[congestion_control], fontstyle='italic')
@@ -171,21 +200,24 @@ if __name__ == "__main__":
                     fontstyle='italic',
                 )
 
-            # Add a single legend
+            # Add a factorized legend
             if i == 0 and j == 0:
-                handles = [
-                    plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=colors[host], markersize=10)
-                    for host in unique_src_dest
+                # Legend entries for src_dest colors
+                src_dest_handles = [
+                    plt.Line2D([0], [0], color=colors[src_dest], lw=2)
+                    for src_dest in unique_src_dest
                 ]
-                labels = unique_src_dest.tolist()
-                handles.append(plt.Line2D([0], [0], color="black"))
-                labels.append("1 second mean")
-                handles.append(mpatches.Patch(color="black", alpha=0.2))
-                labels.append("Min/max range")
+                src_dest_labels = unique_src_dest.tolist()
+                # Generic handle for individual flows
+                # flow_handle = plt.Line2D([0], [0], color='k', lw=2, alpha=0.5)
+                # flow_label = 'Individual flows'
+                # Combine handles and labels
+                handles = src_dest_handles # + [flow_handle]
+                labels = src_dest_labels   # + [flow_label]
                 fig.legend(
                     handles,
                     labels,
-                    loc="upper center",
+                    loc='upper center',
                     ncol=len(labels),
                     bbox_to_anchor=(0.5, 1),
                 )
@@ -196,3 +228,8 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.savefig("matplotlib_ss.pdf", bbox_inches="tight")
+
+    return df
+
+if __name__ == "__main__":
+    main()

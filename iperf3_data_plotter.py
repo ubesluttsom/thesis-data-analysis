@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -9,51 +10,55 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import matplotlib.patches as mpatches
 
+from utils import get_logs_by_timestamp
+
 matplotlib.style.use("seaborn-v0_8")
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = ["Libertinus Serif"]
 
-LOG_DIR = "logs"
 CONG_NAMES = {
     "reno": "Reno",
     "cubic": "CUBIC",
+    "lgc": "LGC",
     "lgcc": "LGCC",
+    "dctcp": "DCTCP",
 }
 
-if __name__ == "__main__":
-    # Get a list of all JSON files in LOG_DIR
+def main():
+    logs = get_logs_by_timestamp()
+    logs = logs[max(logs)]
+
+    # Now we can process only the newest files; modify the count as needed
     json_files = []
-    for entry in os.listdir(LOG_DIR):
-        if os.path.isfile(full_path := os.path.join(LOG_DIR, entry)):
-            split_path = os.path.splitext(entry)
-            if split_path[1].lower() == ".json":
-                basename = Path(split_path[0]).with_suffix("").name
-                metadata = basename.split("_")
-                with open(full_path, "r") as file:
-                    data = json.load(file)
-                    data.update(
-                        {
-                            "path": full_path,
-                            "basename": basename,
-                            "program": metadata[0],
-                            "cong": metadata[1],
-                            "host": metadata[-1],
-                        }
-                    )
-                json_files.append(data)
+    for full_path, metadata in logs:
+        with open(full_path, "r") as file:
+            try:
+                data = json.load(file)
+            except json.decoder.JSONDecodeError as e:
+                print(e)
+                print(f"Malformed JSON. Skipping '{file}'.")
+                continue
+            data.update(
+                {
+                    "path": full_path,
+                    "basename": Path(full_path).stem,
+                    "program": metadata[1],
+                    "cong": metadata[2],
+                    "host": metadata[-1],
+                }
+            )
+        json_files.append(data)
 
     # Create DataFrames for all iperf3 files
     data_frames = []
     for log in json_files:
         start_date = log["start"]["timestamp"]["timesecs"]
-        df = pd.DataFrame(
-            [i["streams"][0] for i in log["intervals"]]
-        )  # Assuming 1 stream!
+        df = pd.DataFrame([i["streams"][0] for i in log["intervals"]])  # Assuming 1 stream!
         df["datetime"] = pd.to_datetime(start_date + df["start"], unit="s")
         df["program"] = log["program"]
         df["congestion_control"] = log["cong"]
         df["host"] = log["host"]
-        df["time"] = df["datetime"].dt.floor("1s")
+        df["time"] = df["datetime"].dt.floor("1s")  # Bin to 1s
         data_frames.append(df)
 
     # Make giant DataFrame
@@ -77,8 +82,9 @@ if __name__ == "__main__":
         nrows=len(sender_or_reciever),
         ncols=len(congestion_controls),
         figsize=(len(congestion_controls) * 4, len(sender_or_reciever) * 2),
-        sharey="row",
-        sharex="col",
+        sharey=True,
+        sharex=True,
+        squeeze=False,
     )
 
     # Ensure axes is 2D
@@ -168,3 +174,7 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.savefig("matplotlib_iperf3.pdf", bbox_inches="tight")
+
+if __name__ == "__main__":
+    main()
+
