@@ -2,6 +2,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
+from utils import pipe_or_save
+
 # Network Topology Dictionary
 star_topology_context = {
     "networks": {
@@ -273,7 +275,4 @@ plt.title("Network topology", fontweight='bold')
 plt.tight_layout()
 
 # Save the figure
-plt.savefig("network_topology.pdf", bbox_inches="tight")
-
-# Optionally display the plot
-# plt.show()
+pipe_or_save("network_topology")

@@ -1,16 +1,15 @@
-import os
 import json
-from datetime import datetime
 from pathlib import Path
+
 import pandas as pd
 import numpy as np
-import matplotlib
 
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import matplotlib.patches as mpatches
 
-from utils import get_logs_by_timestamp
+from utils import get_logs_by_timestamp, pipe_or_save
 
 matplotlib.style.use("seaborn-v0_8")
 plt.rcParams["font.family"] = "serif"
@@ -23,6 +22,7 @@ CONG_NAMES = {
     "lgcc": "LGCC",
     "dctcp": "DCTCP",
 }
+
 
 def main():
     logs = get_logs_by_timestamp()
@@ -53,7 +53,9 @@ def main():
     data_frames = []
     for log in json_files:
         start_date = log["start"]["timestamp"]["timesecs"]
-        df = pd.DataFrame([i["streams"][0] for i in log["intervals"]])  # Assuming 1 stream!
+        df = pd.DataFrame(
+            [i["streams"][0] for i in log["intervals"]]
+        )  # Assuming 1 stream!
         df["datetime"] = pd.to_datetime(start_date + df["start"], unit="s")
         df["program"] = log["program"]
         df["congestion_control"] = log["cong"]
@@ -137,7 +139,7 @@ def main():
             # ax.autoscale_view()
 
             if i == 0:
-                ax.set_title(CONG_NAMES[cong], fontstyle='italic')
+                ax.set_title(CONG_NAMES[cong], fontstyle="italic")
             if j == len(congestion_controls) - 1:
                 ax.annotate(
                     f"{'Sender' if sender else 'Reciever'}",
@@ -146,13 +148,20 @@ def main():
                     rotation=270,
                     ha="left",
                     va="center",
-                    fontstyle='italic',
+                    fontstyle="italic",
                 )
 
             # Add a single legend
             if i == 0 and j == 0:
                 handles = [
-                    plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=colors[host], markersize=10)
+                    plt.Line2D(
+                        [0],
+                        [0],
+                        marker="o",
+                        color="w",
+                        markerfacecolor=colors[host],
+                        markersize=10,
+                    )
                     for host in data["host"].unique()
                 ]
                 labels = data["host"].unique().tolist()
@@ -168,13 +177,14 @@ def main():
                     bbox_to_anchor=(0.5, 1),
                 )
 
-    fig.supxlabel("Time (s)", fontstyle='italic')
-    fig.supylabel("Mbit per second", x=0.0, fontstyle='italic')
-    fig.suptitle("Network rate, sender and reciever", y=1.05, fontweight='bold')
+    fig.supxlabel("Time (s)", fontstyle="italic")
+    fig.supylabel("Mbit per second", x=0.0, fontstyle="italic")
+    fig.suptitle("Network rate, sender and reciever", y=1.05, fontweight="bold")
 
     plt.tight_layout()
-    plt.savefig("iperf3.pdf", bbox_inches="tight")
+
+    pipe_or_save("iperf3")
+
 
 if __name__ == "__main__":
     main()
-

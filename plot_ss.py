@@ -1,19 +1,16 @@
-import os
-from datetime import datetime
 from pathlib import Path
+
 import pandas as pd
 import numpy as np
+
 import matplotlib as mpl
-
-# mpl.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
-from utils import get_logs_by_timestamp
+from utils import get_logs_by_timestamp, pipe_or_save
 
-mpl.style.use('seaborn-v0_8')
-plt.rcParams['font.family'] = 'serif'
-plt.rcParams['font.serif'] = ['Libertinus Serif']
+mpl.style.use("seaborn-v0_8")
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = ["Libertinus Serif"]
 
 LOG_DIR = "logs"
 HOSTNAMES = {
@@ -43,11 +40,11 @@ def process_ss_logs(logs):
         elif len(metadata) == 3:
             program = metadata[1]
             congestion_control = metadata[2]
-            host = 'unknown'
+            host = "unknown"
         else:
-            program = 'ss'
-            congestion_control = 'unknown'
-            host = 'unknown'
+            program = "ss"
+            congestion_control = "unknown"
+            host = "unknown"
 
         # Read and parse the ss log file
         try:
@@ -72,7 +69,6 @@ def process_ss_logs(logs):
 
 
 def main():
-
     logs = get_logs_by_timestamp(ext=".log")
     logs = logs[max(logs)]
     df = process_ss_logs(logs)
@@ -82,7 +78,7 @@ def main():
 
     # Convert to datetime and sort by it
     df["datetime"] = pd.to_datetime(df["time"])
-    df["time"] = df["datetime"] #.dt.floor("1s")   # disable 1s bin for now
+    df["time"] = df["datetime"]  # .dt.floor("1s")   # disable 1s bin for now
     df.sort_values("time", inplace=True)
 
     # Split IPs and ports, strip whitespace, coerce to ints
@@ -108,9 +104,14 @@ def main():
     df["src_dest"] = df["src_hostname"] + "–" + df["dst_hostname"]
 
     # Create a unique identifier for each flow
-    df['flow_id'] = (
-        df['src_hostname'] + ':' + df['src_port'].astype(str) + '->' +
-        df['dst_hostname'] + ':' + df['dst_port'].astype(str)
+    df["flow_id"] = (
+        df["src_hostname"]
+        + ":"
+        + df["src_port"].astype(str)
+        + "->"
+        + df["dst_hostname"]
+        + ":"
+        + df["dst_port"].astype(str)
     )
 
     # Calculate relative time, starting from 0 for each congestion control
@@ -154,7 +155,9 @@ def main():
     # Create consistent colors for each src_dest pair
     unique_src_dest = df["src_dest"].dropna().unique()
     n = max(2, len(unique_src_dest))
-    colors = dict(zip(unique_src_dest, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)]))
+    colors = dict(
+        zip(unique_src_dest, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)])
+    )
 
     # Loop through each subplot
     for i, host_group in enumerate(host_groups):
@@ -188,7 +191,7 @@ def main():
             ax.autoscale()
 
             if i == 0:
-                ax.set_title(CONG_NAMES[congestion_control], fontstyle='italic')
+                ax.set_title(CONG_NAMES[congestion_control], fontstyle="italic")
             if j == len(congestion_controls) - 1:
                 ax.annotate(
                     f"{host_group}",
@@ -197,7 +200,7 @@ def main():
                     rotation=270,
                     ha="left",
                     va="center",
-                    fontstyle='italic',
+                    fontstyle="italic",
                 )
 
             # Add a factorized legend
@@ -212,24 +215,26 @@ def main():
                 # flow_handle = plt.Line2D([0], [0], color='k', lw=2, alpha=0.5)
                 # flow_label = 'Individual flows'
                 # Combine handles and labels
-                handles = src_dest_handles # + [flow_handle]
-                labels = src_dest_labels   # + [flow_label]
+                handles = src_dest_handles  # + [flow_handle]
+                labels = src_dest_labels  # + [flow_label]
                 fig.legend(
                     handles,
                     labels,
-                    loc='upper center',
+                    loc="upper center",
                     ncol=len(labels),
                     bbox_to_anchor=(0.5, 1),
                 )
 
-    fig.supxlabel("Time (s)", fontstyle='italic')
-    fig.supylabel("cwnd", x=0, fontstyle='italic')
-    fig.suptitle("Congestion window (cwnd)", y=1.05, fontweight='bold')
+    fig.supxlabel("Time (s)", fontstyle="italic")
+    fig.supylabel("cwnd", x=0, fontstyle="italic")
+    fig.suptitle("Congestion window (cwnd)", y=1.05, fontweight="bold")
 
     plt.tight_layout()
-    plt.savefig("ss.pdf", bbox_inches="tight")
+
+    pipe_or_save("ss")
 
     return df
+
 
 if __name__ == "__main__":
     main()

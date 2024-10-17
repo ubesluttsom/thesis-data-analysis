@@ -1,20 +1,18 @@
-import os
 import re
-from datetime import datetime
 from pathlib import Path
+
 import pandas as pd
 import numpy as np
-import matplotlib as mpl
 
-# mpl.use("Agg")
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from utils import get_logs_by_timestamp
+from utils import get_logs_by_timestamp, pipe_or_save
 
 # Set the style and fonts to match your existing script
-mpl.style.use('seaborn-v0_8')
-plt.rcParams['font.family'] = 'serif'
-plt.rcParams['font.serif'] = ['Libertinus Serif']
+mpl.style.use("seaborn-v0_8")
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = ["Libertinus Serif"]
 
 LOG_DIR = "logs"
 HOSTNAMES = {
@@ -31,6 +29,7 @@ CONG_NAMES = {
     "dctcp": "DCTCP",
 }
 
+
 def process_ping_logs(logs):
     data_frames = []
     for full_path, metadata in logs:
@@ -43,14 +42,14 @@ def process_ping_logs(logs):
         elif len(metadata) == 3:
             program = metadata[1]
             congestion_control = metadata[2]
-            host = 'unknown'
+            host = "unknown"
         else:
-            program = 'ping'
-            congestion_control = 'unknown'
-            host = 'unknown'
+            program = "ping"
+            congestion_control = "unknown"
+            host = "unknown"
 
         # Read and parse the ping log file
-        with open(full_path, 'r') as f:
+        with open(full_path, "r") as f:
             lines = f.readlines()
 
         # Initialize lists to collect data
@@ -59,9 +58,9 @@ def process_ping_logs(logs):
         rtt_list = []
         for line in lines:
             line = line.strip()
-            if 'bytes from' in line:
+            if "bytes from" in line:
                 # Use regex to extract seq and time
-                match = re.search(r'seq=(\d+).*time=([\d.]+) ms', line)
+                match = re.search(r"seq=(\d+).*time=([\d.]+) ms", line)
                 if match:
                     seq = int(match.group(1))
                     rtt = float(match.group(2))
@@ -73,16 +72,18 @@ def process_ping_logs(logs):
                     rtt_list.append(rtt)
 
         # Create DataFrame
-        data = pd.DataFrame({
-            'seq': seq_list,
-            'time': time_list,
-            'rtt': rtt_list,
-        })
-        data['path'] = full_path
-        data['basename'] = basename
-        data['program'] = program
-        data['congestion_control'] = congestion_control
-        data['host'] = host
+        data = pd.DataFrame(
+            {
+                "seq": seq_list,
+                "time": time_list,
+                "rtt": rtt_list,
+            }
+        )
+        data["path"] = full_path
+        data["basename"] = basename
+        data["program"] = program
+        data["congestion_control"] = congestion_control
+        data["host"] = host
         data_frames.append(data)
 
     # Concatenate all data frames
@@ -94,25 +95,28 @@ def process_ping_logs(logs):
         print("No data frames to process.")
         exit(1)
 
+
 def main():
-    logs = get_logs_by_timestamp(ext=".log", log_dir='logs')
+    logs = get_logs_by_timestamp(ext=".log", log_dir="logs")
     logs = logs[max(logs)]
     df = process_ping_logs(logs)
 
     # Convert 'time' to datetime if not already
-    if not pd.api.types.is_datetime64_any_dtype(df['time']):
-        df['time'] = pd.to_datetime(df['time'])
+    if not pd.api.types.is_datetime64_any_dtype(df["time"]):
+        df["time"] = pd.to_datetime(df["time"])
 
     # Sort by time
-    df.sort_values('time', inplace=True)
+    df.sort_values("time", inplace=True)
 
     # Calculate relative time for each congestion control group
-    df['relative_time'] = df.groupby('congestion_control')['time'].transform(
+    df["relative_time"] = df.groupby("congestion_control")["time"].transform(
         lambda x: (x - x.min()).dt.total_seconds()
     )
 
     # Map congestion control names
-    df['cong_name'] = df['congestion_control'].map(CONG_NAMES).fillna(df['congestion_control'])
+    df["cong_name"] = (
+        df["congestion_control"].map(CONG_NAMES).fillna(df["congestion_control"])
+    )
 
     # Exclude 'vm1' from the DataFrame if needed
     df = df[df["host"] != "vm1"]
@@ -139,40 +143,43 @@ def main():
     # Create consistent colors for each host
     unique_hosts = df["host"].unique()
     n = max(2, len(unique_hosts))
-    colors = dict(zip(unique_hosts, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)]))
+    colors = dict(
+        zip(unique_hosts, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)])
+    )
 
     # Loop through each subplot
     for i, host in enumerate(host_groups):
         for j, congestion_control in enumerate(congestion_controls):
             ax = axes[i, j]
             data = df[
-                (df["host"] == host)
-                & (df["congestion_control"] == congestion_control)
+                (df["host"] == host) & (df["congestion_control"] == congestion_control)
             ]
             if data.empty:
                 ax.set_visible(False)
                 continue
 
             # Resample data into 1-second bins
-            data.set_index('relative_time', inplace=True)
-            resampled = data['rtt'].groupby(np.floor(data.index)).agg(['mean', 'min', 'max'])
+            data.set_index("relative_time", inplace=True)
+            resampled = (
+                data["rtt"].groupby(np.floor(data.index)).agg(["mean", "min", "max"])
+            )
             resampled.reset_index(inplace=True)
-            resampled.rename(columns={'index': 'relative_time'}, inplace=True)
+            resampled.rename(columns={"index": "relative_time"}, inplace=True)
 
             # Plot mean RTT as a solid line
             ax.plot(
-                resampled['relative_time'],
-                resampled['mean'],
+                resampled["relative_time"],
+                resampled["mean"],
                 color=colors[host],
                 alpha=0.9,
-                label=HOSTNAMES.get(host, host)
+                label=HOSTNAMES.get(host, host),
             )
 
             # Fill between min and max RTT to show variability
             ax.fill_between(
-                resampled['relative_time'],
-                resampled['min'],
-                resampled['max'],
+                resampled["relative_time"],
+                resampled["min"],
+                resampled["max"],
                 color=colors[host],
                 alpha=0.3,
             )
@@ -181,7 +188,10 @@ def main():
             ax.autoscale()
 
             if i == 0:
-                ax.set_title(CONG_NAMES.get(congestion_control, congestion_control), fontstyle='italic')
+                ax.set_title(
+                    CONG_NAMES.get(congestion_control, congestion_control),
+                    fontstyle="italic",
+                )
             if j == len(congestion_controls) - 1:
                 ax.annotate(
                     f"{HOSTNAMES.get(host, host)}",
@@ -190,29 +200,27 @@ def main():
                     rotation=270,
                     ha="left",
                     va="center",
-                    fontstyle='italic',
+                    fontstyle="italic",
                 )
 
     # Add legend
-    handles = [
-        plt.Line2D([0], [0], color=colors[host], lw=2)
-        for host in unique_hosts
-    ]
+    handles = [plt.Line2D([0], [0], color=colors[host], lw=2) for host in unique_hosts]
     labels = [HOSTNAMES.get(host, host) for host in unique_hosts]
     fig.legend(
         handles,
         labels,
-        loc='upper center',
+        loc="upper center",
         ncol=len(labels),
         bbox_to_anchor=(0.5, 1),
     )
 
-    fig.supxlabel("Time (s)", fontstyle='italic')
-    fig.supylabel("RTT (ms)", x=0, fontstyle='italic')
-    fig.suptitle("Ping RTT over Time", y=1.05, fontweight='bold')
+    fig.supxlabel("Time (s)", fontstyle="italic")
+    fig.supylabel("RTT (ms)", x=0, fontstyle="italic")
+    fig.suptitle("Ping RTT over Time", y=1.05, fontweight="bold")
 
     plt.tight_layout()
-    plt.savefig("ping.pdf", bbox_inches="tight")
+    pipe_or_save("ping")
+
 
 if __name__ == "__main__":
     main()
