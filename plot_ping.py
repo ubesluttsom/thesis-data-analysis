@@ -27,6 +27,7 @@ CONG_NAMES = {
     "lgc": "LGC",
     "lgcc": "LGCC",
     "dctcp": "DCTCP",
+    "bbr": "BBR",
 }
 
 
