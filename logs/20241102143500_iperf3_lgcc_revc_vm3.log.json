@@ -1,0 +1,11 @@
+{
+	"start":	{
+		"connected":	[],
+		"version":	"iperf 3.17.1",
+		"system_info":	"Linux vm1 6.7.0 #145 SMP PREEMPT Sat Nov  2 14:32:58 UTC 2024 aarch64"
+	},
+	"intervals":	[],
+	"end":	{
+	},
+	"error":	"error - unable to receive cookie at server: Address family not supported by protocol"
+}

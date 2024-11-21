@@ -1,0 +1,22 @@
+2024-10-22T14:57:27.396
+PING vm1 (10.0.1.101): 4 data bytes
+12 bytes from 10.0.1.101: seq=0 ttl=63 time=5.292 ms
+12 bytes from 10.0.1.101: seq=1 ttl=63 time=4.273 ms
+12 bytes from 10.0.1.101: seq=2 ttl=63 time=1.855 ms
+12 bytes from 10.0.1.101: seq=3 ttl=63 time=3.943 ms
+12 bytes from 10.0.1.101: seq=4 ttl=63 time=3.864 ms
+12 bytes from 10.0.1.101: seq=5 ttl=63 time=2.432 ms
+12 bytes from 10.0.1.101: seq=6 ttl=63 time=2.675 ms
+12 bytes from 10.0.1.101: seq=7 ttl=63 time=17.914 ms
+12 bytes from 10.0.1.101: seq=100 ttl=63 time=40.449 ms
+12 bytes from 10.0.1.101: seq=109 ttl=63 time=39.647 ms
+12 bytes from 10.0.1.101: seq=408 ttl=63 time=27.387 ms
+12 bytes from 10.0.1.101: seq=800 ttl=63 time=5.024 ms
+12 bytes from 10.0.1.101: seq=999 ttl=63 time=3.596 ms
+12 bytes from 10.0.1.101: seq=1000 ttl=63 time=2.703 ms
+12 bytes from 10.0.1.101: seq=1001 ttl=63 time=1.704 ms
+12 bytes from 10.0.1.101: seq=1002 ttl=63 time=4.256 ms
+12 bytes from 10.0.1.101: seq=1003 ttl=63 time=2.760 ms
+12 bytes from 10.0.1.101: seq=1004 ttl=63 time=2.029 ms
+12 bytes from 10.0.1.101: seq=1005 ttl=63 time=7.725 ms
+12 bytes from 10.0.1.101: seq=1006 ttl=63 time=1.801 ms

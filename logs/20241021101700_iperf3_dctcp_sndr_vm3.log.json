@@ -1,0 +1,11 @@
+{
+	"start":	{
+		"connected":	[],
+		"version":	"iperf 3.17.1",
+		"system_info":	"Linux vm3 6.7.0 #118 SMP PREEMPT Fri Oct 18 10:48:42 UTC 2024 aarch64"
+	},
+	"intervals":	[],
+	"end":	{
+	},
+	"error":	"unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Host is unreachable"
+}

@@ -1,0 +1,11 @@
+{
+	"start":	{
+		"connected":	[],
+		"version":	"iperf 3.17.1",
+		"system_info":	"Linux vm2 6.7.0 #121 SMP PREEMPT Mon Oct 21 19:10:02 UTC 2024 aarch64"
+	},
+	"intervals":	[],
+	"end":	{
+	},
+	"error":	"control socket has closed unexpectedly"
+}
