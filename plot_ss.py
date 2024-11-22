@@ -3,7 +3,7 @@ import sys
 
 import pandas as pd
 
-import matplotlib as mpl
+import matplotlib
 import matplotlib.pyplot as plt
 
 from utils import (
@@ -14,6 +14,7 @@ from utils import (
 )
 
 
+matplotlib.style.use("seaborn-v0_8")
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = ["Libertinus Serif"]
 
