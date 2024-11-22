@@ -2,34 +2,33 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import matplotlib.patches as mpatches
 
-from utils import get_logs_by_timestamp, pipe_or_save
+from utils import get_logs_by_timestamp, pipe_or_save, parse_timestamp_arg
 
 matplotlib.style.use("seaborn-v0_8")
 plt.rcParams["font.family"] = "serif"
 plt.rcParams["font.serif"] = ["Libertinus Serif"]
 
 CONG_NAMES = {
-    "reno": "Reno",
+    "bbr": "BBR",
     "cubic": "CUBIC",
+    "dctcp": "DCTCP",
     "lgc": "LGC",
     "lgcc": "LGCC",
-    "dctcp": "DCTCP",
-    "bbr": "BBR",
+    "reno": "Reno",
 }
 
 
 def main():
-    logs = get_logs_by_timestamp()
+    timestamp = parse_timestamp_arg()
+    logs = get_logs_by_timestamp(target_timestamp=timestamp)
     logs = logs[max(logs)]
 
-    # Now we can process only the newest files; modify the count as needed
     json_files = []
     for full_path, metadata in logs:
         with open(full_path, "r") as file:
@@ -50,67 +49,55 @@ def main():
             )
         json_files.append(data)
 
-    # Create DataFrames for all iperf3 files
     data_frames = []
     for log in json_files:
         start_date = log["start"]["timestamp"]["timesecs"]
-        df = pd.DataFrame(
-            [i["streams"][0] for i in log["intervals"]]
-        )  # Assuming 1 stream!
+        df = pd.DataFrame([i["streams"][0] for i in log["intervals"]])
         df["datetime"] = pd.to_datetime(start_date + df["start"], unit="s")
         df["program"] = log["program"]
         df["congestion_control"] = log["cong"]
         df["host"] = log["host"]
-        df["time"] = df["datetime"].dt.floor("1s")  # Bin to 1s
+        df["time"] = df["datetime"].dt.floor("1s")
         data_frames.append(df)
 
-    # Make giant DataFrame
     df = pd.concat(data_frames)
 
-    # Calculate relative time, starting from 0 for each congestion control
-    # group. Assuming each congestion control group is tested concurently.
     df["relative_time"] = df.groupby("congestion_control")["time"].transform(
         lambda x: (x - x.min()).dt.total_seconds()
     )
 
     # PLOTTING
+    hosts = sorted(df["host"].unique())
+    congestion_controls = sorted(df["congestion_control"].unique())
+    sender_or_receiver = df["sender"].unique()
 
-    # Unique hosts and congestion controls
-    hosts = df["host"].unique()
-    congestion_controls = df["congestion_control"].unique()
-    sender_or_reciever = df["sender"].unique()
-
-    # Adjust figure rows, columns, size, and aspect ratio
     fig, axes = plt.subplots(
-        nrows=len(sender_or_reciever),
-        ncols=len(congestion_controls),
-        figsize=(len(congestion_controls) * 4, len(sender_or_reciever) * 2),
+        nrows=len(congestion_controls),
+        ncols=len(sender_or_receiver),
+        figsize=(8, len(congestion_controls) * 2),
         sharey=True,
         sharex=True,
         squeeze=False,
     )
 
-    # Ensure axes is 2D
-    axes = np.atleast_2d(axes)
-
     # Create consistent colors
-    unique_hosts = df["host"].unique()
-    n = max(2, len(unique_hosts))
-    colors = dict(
-        zip(unique_hosts, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)])
-    )
+    n = max(2, len(hosts))
+    colors = dict(zip(hosts, [plt.cm.ocean((i / 1.5) / (n - 1)) for i in range(n)]))
 
     # Plot data
-    for i, sender in enumerate(sender_or_reciever):
-        for j, cong in enumerate(congestion_controls):
+    for i, cong in enumerate(congestion_controls):
+        for j, sender in enumerate(sender_or_receiver):
             ax = axes[i, j]
             data = df[(df["sender"] == sender) & (df["congestion_control"] == cong)]
             if data.empty:
                 ax.set_visible(False)
                 continue
 
-            for host in data["host"].unique():
+            for host in hosts:
                 data_host = data[data["host"] == host]
+                if data_host.empty:
+                    continue
+
                 grouped = (
                     data_host.groupby("relative_time")["bits_per_second"]
                     .agg(["mean", "min", "max"])
@@ -130,59 +117,51 @@ def main():
                     alpha=0.2,
                 )
 
-            # Convert y-axis to Mbps
             ax.yaxis.set_major_formatter(
                 ticker.FuncFormatter(lambda x, _: f"{x / 1e6:.0f}")
             )
 
-            # ax.relim()
             ax.autoscale()
-            # ax.autoscale_view()
 
+            if j == 0:
+                ax.set_ylabel(CONG_NAMES[cong], fontstyle="italic")
             if i == 0:
-                ax.set_title(CONG_NAMES[cong], fontstyle="italic")
-            if j == len(congestion_controls) - 1:
-                ax.annotate(
-                    f"{'Sender' if sender else 'Reciever'}",
-                    xy=(1.01, 0.5),
-                    xycoords="axes fraction",
-                    rotation=270,
-                    ha="left",
-                    va="center",
-                    fontstyle="italic",
+                ax.set_title(
+                    f"{'Sender' if sender else 'Receiver'}", fontstyle="italic"
                 )
 
-            # Add a single legend
-            if i == 0 and j == 0:
-                handles = [
-                    plt.Line2D(
-                        [0],
-                        [0],
-                        marker="o",
-                        color="w",
-                        markerfacecolor=colors[host],
-                        markersize=10,
-                    )
-                    for host in data["host"].unique()
-                ]
-                labels = data["host"].unique().tolist()
-                handles.append(plt.Line2D([0], [0], color="black"))
-                labels.append("1 second mean")
-                handles.append(mpatches.Patch(color="black", alpha=0.2))
-                labels.append("Min/max range")
-                fig.legend(
-                    handles,
-                    labels,
-                    loc="upper center",
-                    ncol=len(labels),
-                    bbox_to_anchor=(0.5, 1),
-                )
+    # Create legend elements
+    legend_elements = []
 
+    # Add both line and patch for each host
+    for host in hosts:
+        # Add mean line
+        legend_elements.append(
+            plt.Line2D([], [], color=colors[host], label=f"{host} mean (1s)")
+        )
+        # Add range patch
+        legend_elements.append(
+            mpatches.Patch(
+                color=colors[host], alpha=0.2, label=f"{host} min/max range (1s)"
+            )
+        )
+
+    # Place legend at top with good spacing
+    fig.legend(
+        handles=legend_elements,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.15),
+        ncol=len(hosts),  # Two entries per host
+        fontsize="small",
+    )
+
+    # Adjust labels and title
     fig.supxlabel("Time (s)", fontstyle="italic")
-    fig.supylabel("Mbit per second", x=0.0, fontstyle="italic")
-    fig.suptitle("Network rate, sender and reciever", y=1.05, fontweight="bold")
+    fig.supylabel("Mbit per second", fontstyle="italic")
 
+    # Adjust layout with proper spacing
     plt.tight_layout()
+    plt.subplots_adjust(top=0.93)
 
     pipe_or_save("iperf3")
 
